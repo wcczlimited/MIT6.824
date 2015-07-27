@@ -2,7 +2,11 @@ package pbservice
 
 import "viewservice"
 import "net/rpc"
-import "fmt"
+//import "fmt"
+import (
+  "time"
+  "strconv"
+)
 
 // You'll probably need to uncomment these:
 // import "time"
@@ -14,6 +18,9 @@ import "fmt"
 type Clerk struct {
   vs *viewservice.Clerk
   // Your declarations here
+
+  view viewservice.View
+  me string
 }
 
 
@@ -21,7 +28,11 @@ func MakeClerk(vshost string, me string) *Clerk {
   ck := new(Clerk)
   ck.vs = viewservice.MakeClerk(me, vshost)
   // Your ck.* initializations here
+  ck.view = viewservice.View{}
 
+  // note: argument me could not garantuee unique, this ck.me field would be put along
+  // with PutArgs to show client's identification
+  ck.me = strconv.FormatInt(nrand(), 10)
   return ck
 }
 
@@ -43,20 +54,30 @@ func MakeClerk(vshost string, me string) *Clerk {
 // please don't change this function.
 //
 func call(srv string, rpcname string,
-          args interface{}, reply interface{}) bool {
+args interface{}, reply interface{}) bool {
   c, errx := rpc.Dial("unix", srv)
   if errx != nil {
     return false
   }
   defer c.Close()
-    
+
   err := c.Call(rpcname, args, reply)
   if err == nil {
     return true
   }
 
-  fmt.Println(err)
+  //	fmt.Println(err)
   return false
+}
+
+
+func (ck *Clerk) UpdateView() {
+  view, err := ck.vs.Ping(ck.view.Viewnum)
+  if err != nil {
+    //		fmt.Println("[client.UpdateView] fails: ", view, err)
+    return
+  }
+  ck.view = view
 }
 
 //
@@ -69,7 +90,20 @@ func call(srv string, rpcname string,
 func (ck *Clerk) Get(key string) string {
 
   // Your code here.
+  if ck.view.Viewnum == 0{
+    ck.UpdateView()
+  }
+  args := &GetArgs{key, nrand()}
+  var reply GetReply
 
+  for {
+    ok := call(ck.view.Primary, "PBServer.Get", args, &reply)
+    if ok {
+      return reply.Value
+    }
+    time.Sleep(viewservice.PingInterval)
+    ck.UpdateView()
+  }
   return "???"
 }
 
@@ -80,6 +114,26 @@ func (ck *Clerk) Get(key string) string {
 func (ck *Clerk) PutExt(key string, value string, dohash bool) string {
 
   // Your code here.
+  if ck.view.Viewnum == 0 {
+    ck.UpdateView()
+  }
+  //	fmt.Println("[Clerk.Put]: key/value", key, "/", value)
+  //	num := nrand()
+  //	fmt.Println("uid: ", num, strconv.FormatInt(nrand(), 10))
+  args := &PutArgs{key, value, dohash, false, strconv.FormatInt(nrand(), 10), ck.me}
+  //	fmt.Println("args ", args)
+  var reply PutReply
+
+  for {
+    ok := call(ck.view.Primary, "PBServer.Put", args, &reply)
+    if ok {
+      //			fmt.Println("client.PutExt returns")
+      return reply.PreviousValue
+    }
+    //just always update view, because call may return false, reply empty when server got killed
+    time.Sleep(viewservice.PingInterval)
+    ck.UpdateView()
+  }
   return "???"
 }
 

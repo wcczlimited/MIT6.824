@@ -47,7 +47,7 @@ func call(srv string, rpcname string,
   if err == nil {
     return true
   }
-
+  fmt.Println("call failed")
   fmt.Println(err)
   return false
 }

@@ -1,6 +1,8 @@
 package pbservice
 
 import "hash/fnv"
+import "crypto/rand"
+import "math/big"
 
 const (
   OK = "OK"
@@ -13,10 +15,14 @@ type PutArgs struct {
   Key string
   Value string
   DoHash bool // For PutHash
-  // You'll have to add definitions here.
+              // You'll have to add definitions here.
 
-  // Field names must start with capital letters,
-  // otherwise RPC will break.
+              // Field names must start with capital letters,
+              // otherwise RPC will break.
+
+  Forward bool // identify whether it's primary => backup forward request
+  UUID string  //  used for outstanding RPC request
+  Me string // clerk's identification
 }
 
 type PutReply struct {
@@ -27,11 +33,20 @@ type PutReply struct {
 type GetArgs struct {
   Key string
   // You'll have to add definitions here.
+  UUID int64
 }
 
 type GetReply struct {
   Err Err
   Value string
+}
+
+type ForwardArgs struct {
+  Content map[string]string
+}
+
+type ForwardReply struct {
+  Err Err
 }
 
 
@@ -43,3 +58,9 @@ func hash(s string) uint32 {
   return h.Sum32()
 }
 
+func nrand() int64 {
+  max := big.NewInt(int64(int64(1) << 62))
+  bigx, _ := rand.Int(rand.Reader, max)
+  x := bigx.Int64()
+  return x
+}
