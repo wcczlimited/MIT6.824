@@ -76,8 +76,6 @@ type PBServer struct {
 	// oldreply.client-name => reply value of last rpc for outstanding client
 	// key => value
 	content map[string] string
-
-
 	mu sync.Mutex // used to protect concurrent map access
 }
 
